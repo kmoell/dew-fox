@@ -45,7 +45,7 @@ jobs:
       - name: Sync tree
         run: |
           mkdir -p /android/fox && cd /android/fox
-          repo init -u https://gitlab.com/OrangeFox/Manifest.git -b fox_16.0 --depth=1 --git-timeout 120
+          repo init -u https://gitlab.com/OrangeFox/Manifest.git -b fox_16.0 --depth=1
           mkdir -p .repo/local_manifests
           cp $GITHUB_WORKSPACE/local_manifests/*.xml .repo/local_manifests/
           repo sync -c -j8 --no-tags --fail-fast
