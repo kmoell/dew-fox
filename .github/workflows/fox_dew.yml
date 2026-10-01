@@ -1,0 +1,69 @@
+name: OrangeFox R12 dew
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Maximize disk space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 1024
+          swap-size-mb: 1024
+          build-mount-path: /android
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl zip unzip flex bison \
+            build-essential gcc-multilib g++-multilib libxml2 \
+            libtinfo-dev libncurses-dev libz3-dev libssl-dev \
+            zstd lzop xz-utils ccache rsync imagemagick bc \
+            python-is-python3
+          sudo mkdir -p /usr/local/bin
+          sudo curl -o /usr/local/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
+          sudo chmod a+x /usr/local/bin/repo
+
+      - name: Setup git
+        run: |
+          git config --global user.name "dew-build"
+          git config --global user.email "kmoell@users.noreply.github.com"
+
+      - name: Ccache
+        uses: actions/cache@v4
+        with:
+          path: /android/.ccache
+          key: ccache-${{ github.run_id }}
+          restore-keys: ccache-
+
+      - name: Sync tree
+        run: |
+          mkdir -p /android/fox && cd /android/fox
+          repo init -u https://gitlab.com/OrangeFox/Manifest.git -b fox_16.0 --depth=1 --git-timeout 120
+          mkdir -p .repo/local_manifests
+          cp $GITHUB_WORKSPACE/local_manifests/*.xml .repo/local_manifests/
+          repo sync -c -j8 --no-tags --fail-fast
+
+      - name: Build
+        run: |
+          export FOX_BUILD_DEVICE=dew
+          export USE_CCACHE=1 CCACHE_DIR=/android/.ccache
+          ccache -M 20G
+          cd /android/fox
+          source build/envsetup.sh
+          lunch twrp_dew-bp2a-eng
+          mka -j$(nproc) recoveryimage vendorbootimage
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrangeFox-R12-dew
+          path: |
+            /android/fox/out/target/product/dew/recovery.img
+            /android/fox/out/target/product/dew/vendor_boot.img
