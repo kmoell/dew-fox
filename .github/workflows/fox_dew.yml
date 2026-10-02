@@ -15,7 +15,7 @@ jobs:
         uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 512
-          swap-size-mb: 12288
+          swap-size-mb: 6144
           remove-dotnet: 'true'
           remove-android: 'true'
           remove-codeql: 'true'
@@ -59,11 +59,30 @@ jobs:
         run: |
           export FOX_BUILD_DEVICE=dew
           export USE_CCACHE=1 CCACHE_DIR=/android/.ccache
-          ccache -M 20G
+          ccache -M 10G
+          # soong/go use /tmp on the tiny root disk -> move scratch to the big LVM volume
+          mkdir -p /android/tmp
+          export TMPDIR=/android/tmp
+          export TEMP=$TMPDIR TMP=$TMPDIR
           cd /android/fox
           source build/envsetup.sh
           lunch twrp_dew-bp2a-eng
-          mka -j3 recoveryimage vendorbootimage
+          # run build in background with a heartbeat monitor: disk/mem/tail every 90s
+          set +e
+          mka -j3 recoveryimage vendorbootimage > /tmp/foxbuild.log 2>&1 &
+          BPID=$!
+          while kill -0 $BPID 2>/dev/null; do
+            echo "== heartbeat $(date -u +%H:%M:%S) =="
+            df -h /android / | tail -2
+            free -h | head -2
+            tail -3 /tmp/foxbuild.log 2>/dev/null || true
+            echo
+            sleep 90
+          done
+          wait $BPID; RC=$?
+          echo "BUILD EXIT CODE: $RC"
+          tail -60 /tmp/foxbuild.log
+          exit $RC
 
       - name: Upload
         uses: actions/upload-artifact@v4
