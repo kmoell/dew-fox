@@ -15,7 +15,7 @@ jobs:
         uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 1024
-          swap-size-mb: 1024
+          swap-size-mb: 12288
           build-mount-path: /android
 
       - name: Install deps
@@ -58,7 +58,7 @@ jobs:
           cd /android/fox
           source build/envsetup.sh
           lunch twrp_dew-bp2a-eng
-          mka -j$(nproc) recoveryimage vendorbootimage
+          mka -j3 recoveryimage vendorbootimage
 
       - name: Upload
         uses: actions/upload-artifact@v4
